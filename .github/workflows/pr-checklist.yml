@@ -1,0 +1,141 @@
+# ============================================================================
+# PR Checklist — verify common quality standards and surface them in one place
+# Demonstrates: github-script, combined status check, PR body inspection
+# ============================================================================
+name: PR Checklist
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, ready_for_review]
+
+permissions:
+  pull-requests: write
+  checks: write
+
+jobs:
+  checklist:
+    name: Verify PR quality
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run checklist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const checks = [];
+
+            // 1. PR has a description
+            const hasDescription = pr.body && pr.body.trim().length > 20;
+            checks.push({
+              name: 'PR has a meaningful description',
+              pass: hasDescription,
+              detail: hasDescription
+                ? `${pr.body.trim().length} characters`
+                : 'Body is empty or too short (min 20 chars)'
+            });
+
+            // 2. PR is not too large
+            const totalChanges = pr.additions + pr.deletions;
+            const sizeOk = totalChanges <= 500;
+            checks.push({
+              name: 'PR size is manageable (≤ 500 lines)',
+              pass: sizeOk,
+              detail: `${pr.additions} additions, ${pr.deletions} deletions (${totalChanges} total)`
+            });
+
+            // 3. Title length is reasonable
+            const titleOk = pr.title.length >= 10 && pr.title.length <= 72;
+            checks.push({
+              name: 'Title is 10–72 characters',
+              pass: titleOk,
+              detail: `${pr.title.length} characters`
+            });
+
+            // 4. Not targeting a protected pattern in changed files
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              per_page: 100,
+            });
+
+            const sensitivePatterns = [/\.env/, /secrets?\./, /\/\.github\/workflows\//];
+            const sensitiveFiles = files
+              .map(f => f.filename)
+              .filter(f => sensitivePatterns.some(p => p.test(f)));
+            const noSensitive = sensitiveFiles.length === 0;
+            checks.push({
+              name: 'No sensitive files modified',
+              pass: noSensitive,
+              detail: noSensitive
+                ? 'None detected'
+                : `⚠️ Review needed: ${sensitiveFiles.join(', ')}`
+            });
+
+            // 5. No console.log left in source files
+            const srcFiles = files
+              .filter(f => f.filename.startsWith('src/') && f.filename.match(/\.(ts|tsx|js|jsx)$/))
+              .filter(f => f.patch && f.patch.includes('console.log'));
+            const noConsoleLogs = srcFiles.length === 0;
+            checks.push({
+              name: 'No console.log added in src/',
+              pass: noConsoleLogs,
+              detail: noConsoleLogs
+                ? 'Clean'
+                : `Found in: ${srcFiles.map(f => f.filename).join(', ')}`
+            });
+
+            // Build summary
+            const allPass = checks.every(c => c.pass);
+            const marker = '<!-- pr-checklist -->';
+            const rows = checks.map(c =>
+              `| ${c.pass ? '✅' : '⚠️'} | ${c.name} | ${c.detail} |`
+            ).join('\n');
+
+            const body = [
+              marker,
+              `### ${allPass ? '✅' : '⚠️'} PR Checklist`,
+              '',
+              '| | Check | Detail |',
+              '|---|-------|--------|',
+              rows,
+              '',
+              allPass
+                ? '> All checks passed!'
+                : '> Some checks need attention — these are advisory, not blocking.',
+              '',
+              `<sub>Updated for ${pr.head.sha.slice(0, 7)}</sub>`
+            ].join('\n');
+
+            // Upsert comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body,
+              });
+            }
+
+            // Fail the check if critical items are missing (optional — currently advisory)
+            // if (!allPass) core.setFailed('Some checklist items need attention');

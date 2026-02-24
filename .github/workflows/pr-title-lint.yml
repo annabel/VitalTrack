@@ -1,0 +1,73 @@
+# ============================================================================
+# PR Title Lint — enforce conventional commit format on PR titles
+# Demonstrates: PR event filtering, regex validation, status checks
+#
+# Useful when you squash-merge PRs (the PR title becomes the commit message).
+# Format: type(optional-scope): description
+# Examples: feat: add sleep tracker, fix(chart): handle empty data
+# ============================================================================
+name: PR Title Lint
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize]
+
+permissions:
+  pull-requests: write
+
+jobs:
+  lint:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check conventional commit format
+        id: check
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = context.payload.pull_request.title;
+
+            // Standard conventional commit types
+            const types = [
+              'feat', 'fix', 'docs', 'style', 'refactor',
+              'perf', 'test', 'build', 'ci', 'chore', 'revert'
+            ];
+
+            const pattern = new RegExp(
+              `^(${types.join('|')})(\\([a-z0-9-]+\\))?!?: .{1,72}$`
+            );
+
+            if (pattern.test(title)) {
+              core.info(`✅ PR title is valid: "${title}"`);
+              return;
+            }
+
+            const message = [
+              `**❌ PR title does not follow [Conventional Commits](https://www.conventionalcommits.org/).**`,
+              '',
+              `> Received: \`${title}\``,
+              '',
+              '**Expected format:** `type(scope): description`',
+              '',
+              '| Type | Use for |',
+              '|------|---------|',
+              '| `feat` | New feature |',
+              '| `fix` | Bug fix |',
+              '| `docs` | Documentation only |',
+              '| `style` | Formatting, no logic change |',
+              '| `refactor` | Code restructuring |',
+              '| `perf` | Performance improvement |',
+              '| `test` | Adding or updating tests |',
+              '| `build` | Build system or deps |',
+              '| `ci` | CI configuration |',
+              '| `chore` | Maintenance tasks |',
+              '| `revert` | Revert a commit |',
+              '',
+              '**Examples:**',
+              '- `feat: add sleep tracking`',
+              '- `fix(chart): handle empty dataset`',
+              '- `ci: add PR title linter`'
+            ].join('\n');
+
+            core.setFailed(message);
