@@ -1,0 +1,52 @@
+# ============================================================================
+# Reusable Workflow — shared Node.js setup logic callable from other workflows
+# Demonstrates: workflow_call, inputs, outputs, reusable patterns
+# ============================================================================
+name: Reusable Node Setup
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version to install"
+        required: false
+        type: number
+        default: 22
+      install-command:
+        description: "Install command to run"
+        required: false
+        type: string
+        default: "npm ci"
+      run-command:
+        description: "Command to execute after install"
+        required: true
+        type: string
+    outputs:
+      artifact-name:
+        description: "Name of the uploaded artifact (if any)"
+        value: ${{ jobs.run.outputs.artifact-name }}
+
+jobs:
+  run:
+    name: "${{ inputs.run-command }}"
+    runs-on: ubuntu-latest
+    outputs:
+      artifact-name: ${{ steps.meta.outputs.artifact-name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - run: ${{ inputs.install-command }}
+
+      - name: Set metadata
+        id: meta
+        run: |
+          SAFE_NAME=$(echo "${{ inputs.run-command }}" | tr ' /' '-')
+          echo "artifact-name=$SAFE_NAME" >> "$GITHUB_OUTPUT"
+
+      - run: ${{ inputs.run-command }}

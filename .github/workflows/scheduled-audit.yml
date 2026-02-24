@@ -1,0 +1,80 @@
+# ============================================================================
+# Scheduled Audit — weekly dependency & security check
+# Demonstrates: cron schedule, npm audit, issue creation, OIDC
+# ============================================================================
+name: Scheduled Audit
+
+on:
+  schedule:
+    # Every Monday at 09:00 UTC
+    - cron: "0 9 * * 1"
+
+  # Also allow running manually
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Run audit; capture output regardless of exit code
+      - name: Run npm audit
+        id: audit
+        run: |
+          set +e
+          OUTPUT=$(npm audit --audit-level=moderate 2>&1)
+          EXIT_CODE=$?
+          echo "exit_code=$EXIT_CODE" >> "$GITHUB_OUTPUT"
+          echo "$OUTPUT"
+          # Save multiline output
+          {
+            echo "report<<EOF"
+            echo "$OUTPUT"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      # Open an issue if vulnerabilities were found
+      - name: Open issue for vulnerabilities
+        if: steps.audit.outputs.exit_code != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh issue list --label "security" --state open --json number -q '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            echo "Issue #$EXISTING already open — adding comment"
+            gh issue comment "$EXISTING" --body "**Automated re-scan $(date -u +%F)**
+          \`\`\`
+          ${{ steps.audit.outputs.report }}
+          \`\`\`"
+          else
+            gh issue create \
+              --title "🔒 npm audit found vulnerabilities" \
+              --label "security" \
+              --body "**Detected on $(date -u +%F)**
+          \`\`\`
+          ${{ steps.audit.outputs.report }}
+          \`\`\`"
+          fi
+
+      - name: Summary
+        run: |
+          echo "### npm audit result" >> "$GITHUB_STEP_SUMMARY"
+          if [ "${{ steps.audit.outputs.exit_code }}" == "0" ]; then
+            echo "✅ No vulnerabilities found" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ Vulnerabilities detected — see opened issue" >> "$GITHUB_STEP_SUMMARY"
+          fi

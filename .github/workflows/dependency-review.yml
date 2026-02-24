@@ -1,0 +1,27 @@
+# ============================================================================
+# Dependency Review — block PRs that add known-vulnerable packages
+# Demonstrates: dependency-review-action, security scanning
+# ============================================================================
+name: Dependency Review
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Review new dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: moderate
+          comment-summary-in-pr: always
+          # Optionally deny specific licenses
+          # deny-licenses: GPL-3.0, AGPL-3.0

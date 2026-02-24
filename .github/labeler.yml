@@ -1,0 +1,32 @@
+# Label configuration for actions/labeler
+# Used by .github/workflows/pr-automation.yml
+
+components:
+  - changed-files:
+      - any-glob-to-any-file: src/components/**
+
+hooks:
+  - changed-files:
+      - any-glob-to-any-file: src/hooks/**
+
+types:
+  - changed-files:
+      - any-glob-to-any-file: src/types/**
+
+styles:
+  - changed-files:
+      - any-glob-to-any-file:
+          - src/**/*.css
+          - "**/*.css"
+
+config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - vite.config.ts
+          - tsconfig*.json
+          - eslint.config.js
+          - package.json
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: .github/**

@@ -1,0 +1,100 @@
+# ============================================================================
+# Manual Lighthouse — run a Lighthouse audit on demand
+# Demonstrates: workflow_dispatch with inputs, step summary, composite steps
+# ============================================================================
+name: Lighthouse Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "URL to audit (leave blank for local build)"
+        required: false
+        default: ""
+      categories:
+        description: "Lighthouse categories to test"
+        required: true
+        type: choice
+        options:
+          - all
+          - performance
+          - accessibility
+          - best-practices
+          - seo
+      device:
+        description: "Device preset"
+        required: true
+        type: choice
+        options:
+          - mobile
+          - desktop
+        default: mobile
+      runs:
+        description: "Number of Lighthouse runs (median used)"
+        required: false
+        type: number
+        default: 3
+
+jobs:
+  audit:
+    name: Lighthouse (${{ inputs.device }})
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # If no URL provided, build & serve locally
+      - name: Build
+        if: inputs.url == ''
+        run: npm run build
+
+      - name: Start preview server
+        if: inputs.url == ''
+        run: |
+          npx vite preview --port 4173 &
+          sleep 3
+
+      - name: Set target URL
+        id: url
+        run: |
+          if [ -n "${{ inputs.url }}" ]; then
+            echo "target=${{ inputs.url }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "target=http://localhost:4173" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Lighthouse
+        id: lh
+        uses: treosh/lighthouse-ci-action@v12
+        with:
+          urls: ${{ steps.url.outputs.target }}
+          runs: ${{ inputs.runs }}
+          configJson: |
+            {
+              "ci": {
+                "collect": {
+                  "settings": {
+                    "preset": "${{ inputs.device }}"
+                  }
+                }
+              }
+            }
+          uploadArtifacts: true
+
+      - name: Write summary
+        run: |
+          echo "### Lighthouse Results 🔦" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Category | Score |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Performance   | ${{ fromJSON(steps.lh.outputs.manifest)[0].summary.performance }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Accessibility | ${{ fromJSON(steps.lh.outputs.manifest)[0].summary.accessibility }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Best Practices| ${{ fromJSON(steps.lh.outputs.manifest)[0].summary['best-practices'] }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| SEO           | ${{ fromJSON(steps.lh.outputs.manifest)[0].summary.seo }} |" >> "$GITHUB_STEP_SUMMARY"

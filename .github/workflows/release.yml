@@ -1,0 +1,46 @@
+# ============================================================================
+# Release — create a GitHub Release when a version tag is pushed
+# Demonstrates: tag triggers, GitHub CLI, release creation, conditionals
+# ============================================================================
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*" # e.g. v1.0.0, v0.2.1-beta
+
+permissions:
+  contents: write # needed to create releases
+
+jobs:
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      # Zip the build output
+      - name: Package artifact
+        run: |
+          cd dist
+          zip -r ../vitaltrack-${{ github.ref_name }}.zip .
+
+      # Create a GitHub Release with auto-generated notes
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            vitaltrack-${{ github.ref_name }}.zip \
+            --generate-notes \
+            --title "VitalTrack ${{ github.ref_name }}" \
+            ${{ contains(github.ref_name, '-') && '--prerelease' || '' }}
