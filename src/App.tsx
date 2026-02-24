@@ -1,9 +1,10 @@
 import { useState } from 'react';
 import {
-  Activity, Droplets, Moon, Weight, Flame, Dumbbell,
+  Activity, Droplets, Moon, Sun, Monitor, Weight, Flame, Dumbbell,
   LayoutDashboard, Settings, ChevronRight, Target,
 } from 'lucide-react';
 import { useHealthData } from './hooks/useHealthData';
+import { useDarkMode } from './hooks/useDarkMode';
 import MetricCard from './components/MetricCard';
 import WeeklyChart from './components/WeeklyChart';
 import NumberInput from './components/NumberInput';
@@ -21,25 +22,36 @@ export default function App() {
   const [page, setPage] = useState<Page>('dashboard');
   const { todayEntry, last7Days, goals, setGoals, updateToday } = useHealthData();
   const [draftGoals, setDraftGoals] = useState<HealthGoals>(goals);
+  const { isDark, theme, cycleTheme } = useDarkMode();
 
   const pct = (v: number, g: number) => Math.round((v / g) * 100);
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex">
       {/* Sidebar */}
-      <aside className="w-60 bg-white border-r border-gray-100 flex flex-col py-6 px-4 gap-1 shrink-0">
+      <aside className="w-60 bg-white dark:bg-gray-900 border-r border-gray-100 dark:border-gray-800 flex flex-col py-6 px-4 gap-1 shrink-0">
         <div className="flex items-center gap-2 px-2 mb-6">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center">
             <Activity size={18} className="text-white" />
           </div>
-          <span className="font-bold text-gray-800 text-lg">VitalTrack</span>
+          <span className="font-bold text-gray-800 dark:text-gray-100 text-lg">VitalTrack</span>
+          <button
+            onClick={cycleTheme}
+            className="ml-auto p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            aria-label={`Theme: ${theme}. Click to cycle theme`}
+            title={`Theme: ${theme} — click to cycle`}
+          >
+            {theme === 'dark' ? <Moon size={16} /> : theme === 'light' ? <Sun size={16} /> : <Monitor size={16} />}
+          </button>
         </div>
         {NAV.map(({ id, label, icon: Icon }) => (
           <button
             key={id}
             onClick={() => setPage(id)}
             className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors w-full text-left ${
-              page === id ? 'bg-blue-50 text-blue-600' : 'text-gray-600 hover:bg-gray-50 hover:text-gray-800'
+              page === id
+                ? 'bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400'
+                : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800 hover:text-gray-800 dark:hover:text-gray-200'
             }`}
           >
             <Icon size={18} />
@@ -50,7 +62,7 @@ export default function App() {
         <div className="mt-auto px-2">
           <button
             onClick={() => setPage('settings')}
-            className="flex items-center gap-2 text-xs text-gray-400 hover:text-gray-600 transition-colors"
+            className="flex items-center gap-2 text-xs text-gray-400 dark:text-gray-600 hover:text-gray-600 dark:hover:text-gray-400 transition-colors"
           >
             <Settings size={14} /> Settings
           </button>
@@ -59,7 +71,7 @@ export default function App() {
 
       {/* Main content */}
       <main className="flex-1 overflow-auto p-6 lg:p-8">
-        {page === 'dashboard' && <DashboardPage todayEntry={todayEntry} last7Days={last7Days} goals={goals} pct={pct} />}
+        {page === 'dashboard' && <DashboardPage todayEntry={todayEntry} last7Days={last7Days} goals={goals} pct={pct} isDark={isDark} />}
         {page === 'log' && <LogPage todayEntry={todayEntry} goals={goals} updateToday={updateToday} pct={pct} />}
         {page === 'settings' && (
           <GoalsPage
@@ -74,18 +86,19 @@ export default function App() {
 }
 
 /* ── Dashboard ─────────────────────────────────────────────────── */
-function DashboardPage({ todayEntry, last7Days, goals, pct }: {
+function DashboardPage({ todayEntry, last7Days, goals, pct, isDark }: {
   todayEntry: ReturnType<typeof useHealthData>['todayEntry'];
   last7Days: ReturnType<typeof useHealthData>['last7Days'];
   goals: HealthGoals;
   pct: (v: number, g: number) => number;
+  isDark: boolean;
 }) {
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
   return (
     <div className="flex flex-col gap-6 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Good {greeting()}, Athlete! 👋</h1>
-        <p className="text-sm text-gray-500 mt-0.5">{today}</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Good {greeting()}, Athlete! 👋</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{today}</p>
       </div>
 
       {/* Summary cards */}
@@ -93,35 +106,35 @@ function DashboardPage({ todayEntry, last7Days, goals, pct }: {
         <MetricCard
           label="Steps" value={todayEntry.steps}
           icon={<Activity size={16} />}
-          bgColor="bg-blue-50" iconColor="text-blue-500" barColor="bg-blue-500"
+          bgColor="bg-blue-50 dark:bg-blue-500/20" iconColor="text-blue-500 dark:text-blue-400" barColor="bg-blue-500"
           progress={pct(todayEntry.steps, goals.steps)}
           goal={`${goals.steps.toLocaleString()} steps`}
         />
         <MetricCard
           label="Water" value={todayEntry.waterGlasses}
           icon={<Droplets size={16} />}
-          bgColor="bg-cyan-50" iconColor="text-cyan-500" barColor="bg-cyan-500"
+          bgColor="bg-cyan-50 dark:bg-cyan-500/20" iconColor="text-cyan-500 dark:text-cyan-400" barColor="bg-cyan-500"
           progress={pct(todayEntry.waterGlasses, goals.waterGlasses)}
           unit="glasses" goal={`${goals.waterGlasses} glasses`}
         />
         <MetricCard
           label="Sleep" value={todayEntry.sleepHours}
           icon={<Moon size={16} />}
-          bgColor="bg-indigo-50" iconColor="text-indigo-500" barColor="bg-indigo-500"
+          bgColor="bg-indigo-50 dark:bg-indigo-500/20" iconColor="text-indigo-500 dark:text-indigo-400" barColor="bg-indigo-500"
           progress={pct(todayEntry.sleepHours, goals.sleepHours)}
           unit="hrs" goal={`${goals.sleepHours} hrs`}
         />
         <MetricCard
           label="Calories" value={todayEntry.calories}
           icon={<Flame size={16} />}
-          bgColor="bg-orange-50" iconColor="text-orange-500" barColor="bg-orange-500"
+          bgColor="bg-orange-50 dark:bg-orange-500/20" iconColor="text-orange-500 dark:text-orange-400" barColor="bg-orange-500"
           progress={pct(todayEntry.calories, goals.calories)}
           unit="kcal" goal={`${goals.calories.toLocaleString()} kcal`}
         />
         <MetricCard
           label="Workout" value={todayEntry.workoutMinutes}
           icon={<Dumbbell size={16} />}
-          bgColor="bg-green-50" iconColor="text-green-500" barColor="bg-green-500"
+          bgColor="bg-green-50 dark:bg-green-500/20" iconColor="text-green-500 dark:text-green-400" barColor="bg-green-500"
           progress={pct(todayEntry.workoutMinutes, goals.workoutMinutes)}
           unit="min" goal={`${goals.workoutMinutes} min`}
         />
@@ -129,19 +142,19 @@ function DashboardPage({ todayEntry, last7Days, goals, pct }: {
           <MetricCard
             label="Weight" value={todayEntry.weight ?? '—'}
             icon={<Weight size={16} />}
-            bgColor="bg-purple-50" iconColor="text-purple-500" barColor="bg-purple-300"
+            bgColor="bg-purple-50 dark:bg-purple-500/20" iconColor="text-purple-500 dark:text-purple-400" barColor="bg-purple-300"
             unit="kg"
           />
         )}
       </div>
 
       {/* Weekly charts */}
-      <h2 className="text-base font-semibold text-gray-700 -mb-2">Weekly Trends</h2>
+      <h2 className="text-base font-semibold text-gray-700 dark:text-gray-300 -mb-2">Weekly Trends</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <WeeklyChart entries={last7Days} dataKey="steps" color="#3b82f6" label="Steps" />
-        <WeeklyChart entries={last7Days} dataKey="waterGlasses" color="#06b6d4" label="Water" unit="glasses" />
-        <WeeklyChart entries={last7Days} dataKey="sleepHours" color="#6366f1" label="Sleep" unit="hrs" />
-        <WeeklyChart entries={last7Days} dataKey="calories" color="#f97316" label="Calories" unit="kcal" />
+        <WeeklyChart entries={last7Days} dataKey="steps" color="#3b82f6" label="Steps" isDark={isDark} />
+        <WeeklyChart entries={last7Days} dataKey="waterGlasses" color="#06b6d4" label="Water" unit="glasses" isDark={isDark} />
+        <WeeklyChart entries={last7Days} dataKey="sleepHours" color="#6366f1" label="Sleep" unit="hrs" isDark={isDark} />
+        <WeeklyChart entries={last7Days} dataKey="calories" color="#f97316" label="Calories" unit="kcal" isDark={isDark} />
       </div>
     </div>
   );
@@ -157,11 +170,11 @@ function LogPage({ todayEntry, goals, updateToday, pct }: {
   return (
     <div className="flex flex-col gap-6 max-w-2xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Log Today's Activity</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Track your health metrics for today</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Log Today's Activity</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Track your health metrics for today</p>
       </div>
 
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-6">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 flex flex-col gap-6">
         {/* Steps */}
         <LogRow
           label="Steps" icon={<Activity size={18} className="text-blue-500" />}
@@ -233,11 +246,11 @@ function LogRow({ label, icon, children, progress, barColor, caption }: {
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-2">
         {icon}
-        <span className="font-semibold text-gray-700">{label}</span>
-        {caption && <span className="ml-auto text-xs text-gray-400">{caption}</span>}
+        <span className="font-semibold text-gray-700 dark:text-gray-200">{label}</span>
+        {caption && <span className="ml-auto text-xs text-gray-400 dark:text-gray-500">{caption}</span>}
       </div>
       {progress !== undefined && barColor && (
-        <div className="w-full bg-gray-100 rounded-full h-1.5">
+        <div className="w-full bg-gray-100 dark:bg-gray-800 rounded-full h-1.5">
           <div className={`h-1.5 rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(progress, 100)}%` }} />
         </div>
       )}
@@ -256,10 +269,10 @@ function GoalsPage({ draftGoals, setDraftGoals, onSave }: {
   return (
     <div className="flex flex-col gap-6 max-w-xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-800">Your Goals</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Customise your daily targets</p>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Your Goals</h1>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Customise your daily targets</p>
       </div>
-      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col gap-6">
+      <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 flex flex-col gap-6">
         <NumberInput label="Daily Steps" value={draftGoals.steps} step={500} max={50000}
           onChange={v => set('steps', v)} accentColor="bg-blue-500" />
         <NumberInput label="Water Glasses" value={draftGoals.waterGlasses} max={30} unit="glasses"
