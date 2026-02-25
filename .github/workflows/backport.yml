@@ -1,0 +1,76 @@
+# ============================================================================
+# Backport — cherry-pick merged PR commits to release branches
+# Demonstrates: backport automation, cherry-pick, PR creation
+#
+# Usage: Add a label like "backport/release-1.x" to a merged PR
+# ============================================================================
+name: Backport
+
+on:
+  pull_request:
+    types: [closed, labeled]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  backport:
+    name: Backport
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.pull_request.merged == true &&
+      contains(toJSON(github.event.pull_request.labels.*.name), 'backport/')
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Backport to target branches
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            const labels = pr.labels
+              .map(l => l.name)
+              .filter(n => n.startsWith('backport/'));
+
+            for (const label of labels) {
+              const targetBranch = label.replace('backport/', '');
+              const backportBranch = `backport/${pr.number}-to-${targetBranch}`;
+              const mergeCommit = pr.merge_commit_sha;
+
+              core.info(`Backporting ${mergeCommit} to ${targetBranch} via ${backportBranch}`);
+
+              // Create backport branch and cherry-pick
+              const { execSync } = require('child_process');
+              try {
+                execSync(`git checkout ${targetBranch}`, { stdio: 'inherit' });
+                execSync(`git checkout -b ${backportBranch}`, { stdio: 'inherit' });
+                execSync(`git cherry-pick ${mergeCommit} --strategy-option=theirs`, { stdio: 'inherit' });
+                execSync(`git push origin ${backportBranch}`, { stdio: 'inherit' });
+
+                // Create PR
+                const { data: backportPR } = await github.rest.pulls.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title: `[Backport ${targetBranch}] ${pr.title}`,
+                  head: backportBranch,
+                  base: targetBranch,
+                  body: `Backport of #${pr.number} to \`${targetBranch}\`.\n\nOriginal PR: #${pr.number}`,
+                });
+
+                core.info(`Created backport PR: #${backportPR.number}`);
+              } catch (error) {
+                core.warning(`Failed to backport to ${targetBranch}: ${error.message}`);
+
+                // Comment on original PR about the failure
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: pr.number,
+                  body: `⚠️ Automated backport to \`${targetBranch}\` failed due to conflicts.\n\nPlease cherry-pick manually:\n\`\`\`bash\ngit checkout ${targetBranch}\ngit cherry-pick ${mergeCommit}\n\`\`\``,
+                });
+              }
+            }

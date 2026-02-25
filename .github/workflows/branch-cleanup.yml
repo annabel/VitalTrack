@@ -1,0 +1,42 @@
+# ============================================================================
+# Branch Cleanup — delete branches after PRs are merged
+# Demonstrates: delete event, branch management, housekeeping
+# ============================================================================
+name: Branch Cleanup
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    name: Delete merged branch
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+
+    steps:
+      - name: Delete branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH="${{ github.event.pull_request.head.ref }}"
+
+          # Don't delete protected branches
+          PROTECTED=("main" "develop" "staging" "production")
+          for p in "${PROTECTED[@]}"; do
+            if [ "$BRANCH" == "$p" ]; then
+              echo "Skipping protected branch: $BRANCH"
+              exit 0
+            fi
+          done
+
+          echo "Deleting branch: $BRANCH"
+          gh api -X DELETE "repos/${{ github.repository }}/git/refs/heads/$BRANCH" || true
+
+      - name: Summary
+        run: |
+          echo "### 🧹 Branch Cleanup" >> "$GITHUB_STEP_SUMMARY"
+          echo "Deleted branch \`${{ github.event.pull_request.head.ref }}\` after merge." >> "$GITHUB_STEP_SUMMARY"

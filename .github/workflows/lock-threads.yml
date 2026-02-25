@@ -1,0 +1,35 @@
+# ============================================================================
+# Lock Closed Threads — lock issues and PRs after inactivity
+# Demonstrates: issue/PR locking, scheduled maintenance
+# ============================================================================
+name: Lock Closed Threads
+
+on:
+  schedule:
+    # Run weekly on Saturdays at 02:00 UTC
+    - cron: "0 2 * * 6"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  lock:
+    name: Lock threads
+    runs-on: ubuntu-latest
+    steps:
+      - uses: dessant/lock-threads@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-inactive-days: 60
+          issue-lock-reason: resolved
+          issue-comment: >
+            This issue has been automatically locked since there has been no
+            activity for 60 days after being closed. Please open a new issue
+            if this is still relevant.
+          pr-inactive-days: 30
+          pr-lock-reason: resolved
+          pr-comment: >
+            This PR has been automatically locked since there has been no
+            activity for 30 days after being closed.

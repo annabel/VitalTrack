@@ -1,0 +1,117 @@
+# ============================================================================
+# Staging Deploy — deploy to a staging environment on pushes to main
+# Demonstrates: multi-environment deployment, approval gates, environment secrets
+# ============================================================================
+name: Staging Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      promote-to-production:
+        description: "Also deploy to production?"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: staging-build
+          path: dist/
+          retention-days: 14
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: build
+    runs-on: ubuntu-latest
+
+    environment:
+      name: staging
+      url: https://staging.example.com
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: staging-build
+          path: dist/
+
+      - name: Deploy to staging
+        run: |
+          echo "::notice::Deploying to staging environment..."
+          echo "Build contains $(find dist/ -type f | wc -l | tr -d ' ') files"
+          echo "Total size: $(du -sh dist/ | cut -f1)"
+          # Replace with actual deployment command:
+          # e.g., aws s3 sync dist/ s3://staging-bucket/
+          # e.g., netlify deploy --dir=dist --alias=staging
+          echo "✅ Staging deployment complete"
+
+      - name: Smoke test
+        run: |
+          echo "Running smoke tests against staging..."
+          # Replace with actual smoke test:
+          # curl -f https://staging.example.com/health || exit 1
+          echo "✅ Smoke tests passed"
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Staging Deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Branch:** ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **URL:** https://staging.example.com" >> "$GITHUB_STEP_SUMMARY"
+
+  deploy-production:
+    name: Deploy to Production
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.promote-to-production == true
+
+    # Requires manual approval in GitHub environment settings
+    environment:
+      name: production
+      url: https://vitaltrack.example.com
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: staging-build
+          path: dist/
+
+      - name: Deploy to production
+        run: |
+          echo "::notice::Deploying to PRODUCTION environment..."
+          # Replace with actual deployment command
+          echo "✅ Production deployment complete"
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Production Deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Commit:** ${{ github.sha }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **URL:** https://vitaltrack.example.com" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Promoted from staging**: ✅" >> "$GITHUB_STEP_SUMMARY"

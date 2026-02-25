@@ -1,0 +1,71 @@
+# ============================================================================
+# Nightly Build — scheduled canary build & optional publish
+# Demonstrates: nightly schedule, build artifact retention, notifications
+# ============================================================================
+name: Nightly Build
+
+on:
+  schedule:
+    # Every day at 03:00 UTC
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  nightly:
+    name: Nightly canary build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npx tsc -b --noEmit
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_BUILD_ID: nightly-${{ github.run_number }}
+
+      - name: Measure build output
+        id: stats
+        run: |
+          TOTAL=$(du -sh dist/ | cut -f1)
+          FILES=$(find dist/ -type f | wc -l | tr -d ' ')
+          JS=$(find dist/ -name '*.js' | wc -l | tr -d ' ')
+          CSS=$(find dist/ -name '*.css' | wc -l | tr -d ' ')
+          echo "total=$TOTAL" >> "$GITHUB_OUTPUT"
+          echo "files=$FILES" >> "$GITHUB_OUTPUT"
+          echo "js=$JS" >> "$GITHUB_OUTPUT"
+          echo "css=$CSS" >> "$GITHUB_OUTPUT"
+
+      - name: Upload nightly artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ github.run_number }}
+          path: dist/
+          retention-days: 3
+
+      - name: Summary
+        run: |
+          echo "### 🌙 Nightly Build #${{ github.run_number }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Total size | ${{ steps.stats.outputs.total }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Total files | ${{ steps.stats.outputs.files }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| JS files | ${{ steps.stats.outputs.js }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CSS files | ${{ steps.stats.outputs.css }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Commit | \`$(git rev-parse --short HEAD)\` |" >> "$GITHUB_STEP_SUMMARY"

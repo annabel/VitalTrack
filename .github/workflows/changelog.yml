@@ -1,0 +1,107 @@
+# ============================================================================
+# Changelog — auto-generate changelog on releases
+# Demonstrates: changelog generation, commit parsing, release asset updates
+# ============================================================================
+name: Changelog
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to generate changelog for (e.g. v1.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  changelog:
+    name: Generate changelog
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine tag range
+        id: tags
+        run: |
+          TAG="${{ github.event.release.tag_name || inputs.tag }}"
+          echo "current=$TAG" >> "$GITHUB_OUTPUT"
+
+          # Find the previous tag
+          PREV=$(git tag --sort=-creatordate | grep -A1 "^$TAG$" | tail -1)
+          if [ "$PREV" == "$TAG" ] || [ -z "$PREV" ]; then
+            # First release — use all commits
+            echo "previous=" >> "$GITHUB_OUTPUT"
+            echo "range=HEAD" >> "$GITHUB_OUTPUT"
+          else
+            echo "previous=$PREV" >> "$GITHUB_OUTPUT"
+            echo "range=$PREV..$TAG" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          TAG="${{ steps.tags.outputs.current }}"
+          PREV="${{ steps.tags.outputs.previous }}"
+          RANGE="${{ steps.tags.outputs.range }}"
+
+          {
+            echo "changelog<<EOF"
+            echo "# Changelog for $TAG"
+            echo ""
+
+            if [ -n "$PREV" ]; then
+              echo "**Full diff:** [\`$PREV...$TAG\`](https://github.com/${{ github.repository }}/compare/$PREV...$TAG)"
+              echo ""
+            fi
+
+            # Group commits by conventional commit type
+            for TYPE_LABEL in "feat:Features" "fix:Bug Fixes" "docs:Documentation" "perf:Performance" "refactor:Refactoring" "ci:CI/CD" "chore:Chores"; do
+              TYPE="${TYPE_LABEL%%:*}"
+              LABEL="${TYPE_LABEL##*:}"
+
+              COMMITS=$(git log --pretty=format:"- %s (%h)" "$RANGE" 2>/dev/null | grep "^- $TYPE" || true)
+              if [ -n "$COMMITS" ]; then
+                echo "## $LABEL"
+                echo "$COMMITS"
+                echo ""
+              fi
+            done
+
+            # Uncategorized commits
+            OTHERS=$(git log --pretty=format:"- %s (%h)" "$RANGE" 2>/dev/null | grep -v "^- \(feat\|fix\|docs\|perf\|refactor\|ci\|chore\)" || true)
+            if [ -n "$OTHERS" ]; then
+              echo "## Other Changes"
+              echo "$OTHERS"
+              echo ""
+            fi
+
+            echo "---"
+            echo "_Generated automatically at $(date -u +%Y-%m-%dT%H:%M:%SZ)_"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Update release body
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXISTING=$(gh release view "${{ steps.tags.outputs.current }}" --json body -q '.body')
+          CHANGELOG='${{ steps.changelog.outputs.changelog }}'
+
+          gh release edit "${{ steps.tags.outputs.current }}" \
+            --notes "${EXISTING}
+
+          ---
+
+          ${CHANGELOG}"
+
+      - name: Summary
+        run: |
+          echo "${{ steps.changelog.outputs.changelog }}" >> "$GITHUB_STEP_SUMMARY"

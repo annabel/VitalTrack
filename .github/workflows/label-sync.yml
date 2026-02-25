@@ -1,0 +1,29 @@
+# ============================================================================
+# Label Sync — keep GitHub labels in sync from a config file
+# Demonstrates: label management as code, scheduled sync
+# ============================================================================
+name: Label Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  sync:
+    name: Sync labels
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync labels
+        uses: EndBug/label-sync@v2
+        with:
+          config-file: .github/labels.yml
+          delete-other-labels: false
+          token: ${{ secrets.GITHUB_TOKEN }}

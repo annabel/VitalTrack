@@ -1,0 +1,85 @@
+# ============================================================================
+# Notify — post to Slack on key events (deploy, release, failure)
+# Demonstrates: conditional notifications, Slack webhooks, event filtering
+#
+# Setup: Add SLACK_WEBHOOK_URL to your repo secrets
+# Create one at: https://api.slack.com/messaging/webhooks
+# ============================================================================
+name: Notify
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+      - Staging Deploy
+      - Release
+      - Nightly Build
+    types: [completed]
+
+jobs:
+  notify:
+    name: Send notification
+    runs-on: ubuntu-latest
+    # Only notify on failures, or success of deploys/releases
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       (github.event.workflow_run.name == 'Staging Deploy' ||
+        github.event.workflow_run.name == 'Release'))
+
+    steps:
+      - name: Set message
+        id: msg
+        run: |
+          CONCLUSION="${{ github.event.workflow_run.conclusion }}"
+          WORKFLOW="${{ github.event.workflow_run.name }}"
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          RUN_URL="${{ github.event.workflow_run.html_url }}"
+          ACTOR="${{ github.event.workflow_run.actor.login }}"
+
+          if [ "$CONCLUSION" == "failure" ]; then
+            EMOJI="🔴"
+            STATUS="failed"
+            COLOR="#d73a4a"
+          else
+            EMOJI="✅"
+            STATUS="succeeded"
+            COLOR="#2ea44f"
+          fi
+
+          # Build the Slack payload
+          cat > /tmp/slack-payload.json <<EOF
+          {
+            "attachments": [
+              {
+                "color": "$COLOR",
+                "blocks": [
+                  {
+                    "type": "section",
+                    "text": {
+                      "type": "mrkdwn",
+                      "text": "$EMOJI *$WORKFLOW* $STATUS on \`$BRANCH\`\n<$RUN_URL|View run> • triggered by *$ACTOR*"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+          EOF
+
+      - name: Send to Slack
+        if: env.SLACK_WEBHOOK_URL != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/slack-payload.json
+
+      - name: Log notification (fallback if no webhook)
+        if: env.SLACK_WEBHOOK_URL == ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          echo "::warning::SLACK_WEBHOOK_URL not configured — logging notification instead"
+          cat /tmp/slack-payload.json
