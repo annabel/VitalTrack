@@ -1,0 +1,21 @@
+# ============================================================================
+# Always Fail — a workflow guaranteed to fail every time
+# Useful for testing failure notifications, status checks, and retry logic
+# ============================================================================
+name: Always Fail
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fail:
+    name: This will fail
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail on purpose
+        run: |
+          echo "::error::This workflow is designed to always fail."
+          exit 1
