@@ -1,0 +1,107 @@
+# ============================================================================
+# Reusable Workflow — Send a notification (Slack, summary, issue)
+# Demonstrates: secrets (webhook), inputs, nesting (can be called from other
+#               reusable workflows), multiple notification channels
+# ============================================================================
+name: "(Reusable) Notify"
+
+on:
+  workflow_call:
+    inputs:
+      status:
+        description: "Status of the operation (success, failure, warning, info)"
+        required: true
+        type: string
+      title:
+        description: "Notification title"
+        required: true
+        type: string
+      message:
+        description: "Notification message body"
+        required: false
+        type: string
+        default: ""
+      channel:
+        description: "Notification channel: slack, summary, both"
+        required: false
+        type: string
+        default: "both"
+      mention:
+        description: "Slack user/group to mention on failure (e.g. @oncall)"
+        required: false
+        type: string
+        default: ""
+    secrets:
+      slack-webhook-url:
+        description: "Slack incoming webhook URL"
+        required: false
+
+jobs:
+  notify:
+    name: "Notify (${{ inputs.channel }})"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Resolve emoji and color
+        id: style
+        run: |
+          case "${{ inputs.status }}" in
+            success)  EMOJI="✅"; COLOR="#2ea44f" ;;
+            failure)  EMOJI="🔴"; COLOR="#d73a4a" ;;
+            warning)  EMOJI="⚠️"; COLOR="#dbab09" ;;
+            *)        EMOJI="ℹ️"; COLOR="#0366d6" ;;
+          esac
+          echo "emoji=$EMOJI" >> "$GITHUB_OUTPUT"
+          echo "color=$COLOR" >> "$GITHUB_OUTPUT"
+
+      - name: Post to Slack
+        if: >-
+          (inputs.channel == 'slack' || inputs.channel == 'both') &&
+          secrets.slack-webhook-url != ''
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.slack-webhook-url }}
+        run: |
+          MENTION=""
+          if [ -n "${{ inputs.mention }}" ] && [ "${{ inputs.status }}" == "failure" ]; then
+            MENTION="\ncc ${{ inputs.mention }}"
+          fi
+
+          cat > /tmp/payload.json <<EOF
+          {
+            "attachments": [{
+              "color": "${{ steps.style.outputs.color }}",
+              "blocks": [{
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "${{ steps.style.outputs.emoji }} *${{ inputs.title }}*\n${{ inputs.message }}${MENTION}"
+                }
+              }]
+            }]
+          }
+          EOF
+
+          curl -s -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/payload.json
+
+          echo "::notice::Slack notification sent"
+
+      - name: Write step summary
+        if: inputs.channel == 'summary' || inputs.channel == 'both'
+        run: |
+          echo "### ${{ steps.style.outputs.emoji }} ${{ inputs.title }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -n "${{ inputs.message }}" ]; then
+            echo "${{ inputs.message }}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "_Status: **${{ inputs.status }}** • Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}_" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Fallback log
+        if: >-
+          inputs.channel == 'slack' &&
+          secrets.slack-webhook-url == ''
+        run: |
+          echo "::warning::Slack webhook not configured — logging instead"
+          echo "${{ steps.style.outputs.emoji }} ${{ inputs.title }}: ${{ inputs.message }}"

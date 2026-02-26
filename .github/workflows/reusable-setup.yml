@@ -2,7 +2,7 @@
 # Reusable Workflow — shared Node.js setup logic callable from other workflows
 # Demonstrates: workflow_call, inputs, outputs, reusable patterns
 # ============================================================================
-name: Reusable Node Setup
+name: "(Reusable) Node Setup"
 
 on:
   workflow_call:

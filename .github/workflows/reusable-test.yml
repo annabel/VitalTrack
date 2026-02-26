@@ -1,0 +1,127 @@
+# ============================================================================
+# Reusable Workflow — Run tests with coverage
+# Demonstrates: inputs with defaults, outputs (coverage %), nesting
+#               (calls reusable-setup.yml internally)
+# ============================================================================
+name: "(Reusable) Test"
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Node.js version"
+        required: false
+        type: number
+        default: 22
+      test-command:
+        description: "Test command to run"
+        required: false
+        type: string
+        default: "npm test"
+      coverage-threshold:
+        description: "Minimum coverage percentage to pass"
+        required: false
+        type: number
+        default: 80
+      upload-coverage:
+        description: "Whether to upload coverage artifact"
+        required: false
+        type: boolean
+        default: true
+    outputs:
+      coverage-percent:
+        description: "Line coverage percentage"
+        value: ${{ jobs.test.outputs.coverage }}
+      passed:
+        description: "Whether tests passed (true/false)"
+        value: ${{ jobs.test.outputs.passed }}
+      test-count:
+        description: "Number of tests executed"
+        value: ${{ jobs.test.outputs.test-count }}
+
+jobs:
+  test:
+    name: "Test (Node ${{ inputs.node-version }})"
+    runs-on: ubuntu-latest
+
+    outputs:
+      coverage: ${{ steps.coverage.outputs.percent }}
+      passed: ${{ steps.result.outputs.passed }}
+      test-count: ${{ steps.result.outputs.count }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Run tests
+        id: tests
+        continue-on-error: true
+        run: |
+          # Run the test command; capture exit code
+          set +e
+          ${{ inputs.test-command }} 2>&1 | tee /tmp/test-output.txt
+          echo "exit-code=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Parse results
+        id: result
+        run: |
+          EXIT="${{ steps.tests.outputs.exit-code }}"
+
+          # Try to extract test count from output (common patterns)
+          COUNT=$(grep -oE '[0-9]+ (tests?|specs?) passed' /tmp/test-output.txt | head -1 | grep -oE '[0-9]+' || echo "0")
+          echo "count=$COUNT" >> "$GITHUB_OUTPUT"
+
+          if [ "$EXIT" == "0" ]; then
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Parse coverage
+        id: coverage
+        run: |
+          # Try to extract coverage from common output formats
+          COVERAGE=$(grep -oE 'All files[^|]*\|[^|]*\|[^|]*\|[^|]*\| *([0-9.]+)' /tmp/test-output.txt | grep -oE '[0-9.]+$' || echo "0")
+          if [ "$COVERAGE" == "0" ]; then
+            # Fallback: look for "Coverage: XX%" or "XX% coverage"
+            COVERAGE=$(grep -oiE '([0-9.]+)%? *coverage|coverage[: ]*([0-9.]+)' /tmp/test-output.txt | grep -oE '[0-9.]+' | head -1 || echo "0")
+          fi
+          echo "percent=$COVERAGE" >> "$GITHUB_OUTPUT"
+
+          # Check threshold
+          THRESHOLD="${{ inputs.coverage-threshold }}"
+          if [ "$(echo "$COVERAGE < $THRESHOLD" | bc -l 2>/dev/null || echo 1)" == "1" ]; then
+            echo "::warning::Coverage ${COVERAGE}% is below threshold ${THRESHOLD}%"
+          fi
+
+      - name: Upload coverage
+        if: inputs.upload-coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-node-${{ inputs.node-version }}
+          path: coverage/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Fail if tests failed
+        if: steps.result.outputs.passed == 'false'
+        run: exit 1
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "### 🧪 Test Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Node.js | ${{ inputs.node-version }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests passed | ${{ steps.result.outputs.passed == 'true' && '✅' || '❌' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Test count | ${{ steps.result.outputs.count }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Coverage | ${{ steps.coverage.outputs.percent }}% |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Threshold | ${{ inputs.coverage-threshold }}% |" >> "$GITHUB_STEP_SUMMARY"

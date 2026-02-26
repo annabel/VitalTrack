@@ -1,0 +1,110 @@
+# ============================================================================
+# Full Pipeline — chains all reusable workflows into a complete CI/CD pipeline
+# Demonstrates: nesting, outputs between reusable workflows, matrix + reusable,
+#               secrets: inherit, conditional job execution
+# ============================================================================
+name: "Caller: Full Pipeline"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  deployments: write
+
+jobs:
+  # ── Lint & Typecheck (reusable-setup in parallel) ───────────────────────
+  lint:
+    name: Lint
+    uses: ./.github/workflows/reusable-setup.yml
+    with:
+      run-command: npm run lint
+
+  typecheck:
+    name: Typecheck
+    uses: ./.github/workflows/reusable-setup.yml
+    with:
+      run-command: npx tsc -b --noEmit
+
+  # ── Test across Node versions (matrix + reusable) ──────────────────────
+  test:
+    name: "Test (Node ${{ matrix.node }})"
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]
+    uses: ./.github/workflows/reusable-test.yml
+    with:
+      node-version: ${{ matrix.node }}
+      coverage-threshold: 70
+
+  # ── Build (depends on lint + typecheck) ─────────────────────────────────
+  build:
+    name: Build
+    needs: [lint, typecheck]
+    uses: ./.github/workflows/reusable-setup.yml
+    with:
+      run-command: npm run build
+
+  # ── Deploy to staging (only on main, after build + tests pass) ─────────
+  deploy-staging:
+    name: Deploy Staging
+    needs: [build, test]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: staging
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
+      url: "https://staging.vitaltrack.example.com"
+    secrets: inherit
+
+  # ── Notify on completion ────────────────────────────────────────────────
+  notify-success:
+    name: Notify Success
+    needs: [lint, typecheck, test, build, deploy-staging]
+    if: success() && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/reusable-notify.yml
+    with:
+      status: success
+      title: "Pipeline Complete"
+      message: "All checks passed and staging deployed for `${{ github.sha }}`"
+    secrets: inherit
+
+  notify-failure:
+    name: Notify Failure
+    needs: [lint, typecheck, test, build]
+    if: failure()
+    uses: ./.github/workflows/reusable-notify.yml
+    with:
+      status: failure
+      title: "Pipeline Failed"
+      message: "One or more checks failed on `${{ github.ref_name }}` — ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+      mention: "@oncall"
+    secrets: inherit
+
+  # ── Pipeline report ────────────────────────────────────────────────────
+  report:
+    name: Pipeline Report
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test, build, deploy-staging]
+    if: always()
+
+    steps:
+      - name: Generate report
+        run: |
+          echo "### 📊 Full Pipeline Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Stage | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Lint | ${{ needs.lint.result == 'success' && '✅' || '❌' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Typecheck | ${{ needs.typecheck.result == 'success' && '✅' || '❌' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tests | ${{ needs.test.result == 'success' && '✅' || '❌' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Build | ${{ needs.build.result == 'success' && '✅' || '❌' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Deploy Staging | ${{ needs.deploy-staging.result == 'success' && '✅' || needs.deploy-staging.result == 'skipped' && '⏭️ skipped' || '❌' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Ref:** \`${{ github.ref_name }}\` • **SHA:** \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"

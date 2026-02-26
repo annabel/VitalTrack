@@ -1,0 +1,122 @@
+# ============================================================================
+# Multi-Environment Deploy — calls reusable workflows with matrix strategy
+# Demonstrates: matrix + reusable workflow, chaining outputs between called
+#               workflows, secrets: inherit, nested reusable calls
+# ============================================================================
+name: "Caller: Multi-Environment Deploy"
+
+on:
+  workflow_dispatch:
+    inputs:
+      environments:
+        description: "Environments to deploy to"
+        required: true
+        type: choice
+        options:
+          - staging-only
+          - staging-and-production
+          - all
+        default: staging-only
+      dry-run:
+        description: "Perform a dry run (no actual deploy)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  # ── Step 1: Build once ──────────────────────────────────────────────────
+  build:
+    name: Build
+    uses: ./.github/workflows/reusable-setup.yml
+    with:
+      run-command: npm run build
+
+  # ── Step 2: Deploy to staging ───────────────────────────────────────────
+  deploy-staging:
+    name: Deploy Staging
+    needs: build
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: staging
+      artifact-name: ${{ needs.build.outputs.artifact-name }}
+      url: "https://staging.vitaltrack.example.com"
+      dry-run: ${{ inputs.dry-run }}
+    secrets: inherit
+
+  # ── Step 3: Notify about staging ────────────────────────────────────────
+  notify-staging:
+    name: Notify Staging
+    needs: deploy-staging
+    if: always()
+    uses: ./.github/workflows/reusable-notify.yml
+    with:
+      status: ${{ needs.deploy-staging.result }}
+      title: "Staging Deploy"
+      message: "Deployed to ${{ needs.deploy-staging.outputs.deploy-url }} at ${{ needs.deploy-staging.outputs.deployed-at }}"
+    secrets: inherit
+
+  # ── Step 4: Deploy to production (if selected) ─────────────────────────
+  deploy-production:
+    name: Deploy Production
+    needs: deploy-staging
+    if: >-
+      inputs.environments == 'staging-and-production' ||
+      inputs.environments == 'all'
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: production
+      artifact-name: ${{ needs.deploy-staging.outputs.deploy-url && 'npm-run-build' || 'npm-run-build' }}
+      url: "https://vitaltrack.example.com"
+      dry-run: ${{ inputs.dry-run }}
+    secrets:
+      deploy-token: ${{ secrets.PRODUCTION_DEPLOY_TOKEN }}
+
+  # ── Step 5: Notify about production ─────────────────────────────────────
+  notify-production:
+    name: Notify Production
+    needs: deploy-production
+    if: always() && needs.deploy-production.result != 'skipped'
+    uses: ./.github/workflows/reusable-notify.yml
+    with:
+      status: ${{ needs.deploy-production.result }}
+      title: "Production Deploy"
+      message: "Deployed to ${{ needs.deploy-production.outputs.deploy-url }}"
+      mention: "@oncall"
+    secrets: inherit
+
+  # ── Step 6: Deploy to canary (if "all" selected) ───────────────────────
+  deploy-canary:
+    name: Deploy Canary
+    needs: deploy-staging
+    if: inputs.environments == 'all'
+    uses: ./.github/workflows/reusable-deploy.yml
+    with:
+      environment: canary
+      artifact-name: npm-run-build
+      url: "https://canary.vitaltrack.example.com"
+      dry-run: ${{ inputs.dry-run }}
+    secrets: inherit
+
+  # ── Summary ─────────────────────────────────────────────────────────────
+  summary:
+    name: Deploy Summary
+    runs-on: ubuntu-latest
+    needs: [deploy-staging, deploy-production, deploy-canary]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "### 🚀 Multi-Environment Deploy Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Environment | Status | URL |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------------|--------|-----|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Staging | ${{ needs.deploy-staging.result == 'success' && '✅' || needs.deploy-staging.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-staging.outputs.deploy-url || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Production | ${{ needs.deploy-production.result == 'success' && '✅' || needs.deploy-production.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-production.outputs.deploy-url || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Canary | ${{ needs.deploy-canary.result == 'success' && '✅' || needs.deploy-canary.result == 'skipped' && '⏭️' || '❌' }} | ${{ needs.deploy-canary.outputs.deploy-url || '-' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Dry run:** ${{ inputs.dry-run }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,109 @@
+# ============================================================================
+# Reusable Workflow — Deploy to a named environment
+# Demonstrates: inputs, secrets, outputs, environment keyword in reusable
+# ============================================================================
+name: "(Reusable) Deploy"
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: "Target environment name (e.g. staging, production)"
+        required: true
+        type: string
+      artifact-name:
+        description: "Name of the build artifact to download"
+        required: true
+        type: string
+      artifact-path:
+        description: "Path to extract the artifact into"
+        required: false
+        type: string
+        default: "dist"
+      url:
+        description: "Expected deployment URL (for summary)"
+        required: false
+        type: string
+        default: ""
+      dry-run:
+        description: "If true, skip actual deployment"
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      deploy-token:
+        description: "Token used for deployment authentication"
+        required: false
+    outputs:
+      deploy-url:
+        description: "The URL the app was deployed to"
+        value: ${{ jobs.deploy.outputs.url }}
+      deployed-at:
+        description: "ISO timestamp of deployment"
+        value: ${{ jobs.deploy.outputs.timestamp }}
+
+jobs:
+  deploy:
+    name: "Deploy → ${{ inputs.environment }}"
+    runs-on: ubuntu-latest
+
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ steps.deploy.outputs.url }}
+
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+      timestamp: ${{ steps.deploy.outputs.timestamp }}
+
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+
+      - name: Verify artifact
+        run: |
+          echo "Artifact contents:"
+          ls -la "${{ inputs.artifact-path }}"
+          FILE_COUNT=$(find "${{ inputs.artifact-path }}" -type f | wc -l | tr -d ' ')
+          SIZE=$(du -sh "${{ inputs.artifact-path }}" | cut -f1)
+          echo "Files: $FILE_COUNT, Size: $SIZE"
+
+          if [ "$FILE_COUNT" -eq 0 ]; then
+            echo "::error::Artifact is empty!"
+            exit 1
+          fi
+
+      - name: Deploy
+        id: deploy
+        run: |
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+          URL="${{ inputs.url }}"
+          if [ -z "$URL" ]; then
+            URL="https://${{ inputs.environment }}.vitaltrack.example.com"
+          fi
+
+          if [ "${{ inputs.dry-run }}" == "true" ]; then
+            echo "::notice::DRY RUN — skipping actual deployment"
+          else
+            echo "Deploying to ${{ inputs.environment }}..."
+            # Replace with real deploy command:
+            # aws s3 sync dist/ s3://${{ inputs.environment }}-bucket/
+            # vercel deploy --token="${{ secrets.deploy-token }}" --env=${{ inputs.environment }}
+            echo "✅ Deployed successfully"
+          fi
+
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+          echo "timestamp=$TIMESTAMP" >> "$GITHUB_OUTPUT"
+
+      - name: Summary
+        run: |
+          echo "### 🚀 Deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Environment | \`${{ inputs.environment }}\` |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| URL | ${{ steps.deploy.outputs.url }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Timestamp | ${{ steps.deploy.outputs.timestamp }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dry run | ${{ inputs.dry-run }} |" >> "$GITHUB_STEP_SUMMARY"
