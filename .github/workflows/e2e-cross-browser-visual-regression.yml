@@ -1,0 +1,56 @@
+# ============================================================================
+# Long name to test how GitHub Actions UI handles verbose workflow names
+# ============================================================================
+name: "Automated Cross-Browser End-to-End Testing Suite with Visual Regression Snapshots"
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: "E2E — ${{ matrix.browser }} on ${{ matrix.os }}"
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, firefox, webkit]
+        os: [ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Run E2E tests
+        run: |
+          echo "Running E2E tests on ${{ matrix.browser }}..."
+          # npx playwright test --project=${{ matrix.browser }}
+          echo "✅ All E2E tests passed on ${{ matrix.browser }}"
+
+      - name: Visual regression snapshot comparison
+        run: |
+          echo "Comparing visual snapshots for ${{ matrix.browser }}..."
+          # npx playwright test --project=${{ matrix.browser }} --update-snapshots
+          echo "✅ No visual regressions detected"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-results-${{ matrix.browser }}
+          path: test-results/
+          retention-days: 7

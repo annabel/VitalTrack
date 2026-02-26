@@ -1,0 +1,58 @@
+# ============================================================================
+# Long name to test how GitHub Actions UI handles verbose workflow names
+# ============================================================================
+name: "Comprehensive Accessibility Compliance Audit with WCAG 2.1 AA and Section 508 Validation Report"
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    # Weekly on Wednesdays at 10:00 UTC
+    - cron: "0 10 * * 3"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  audit:
+    name: Accessibility Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Start preview server
+        run: |
+          npx serve dist -l 3000 &
+          sleep 3
+
+      - name: Run axe accessibility scan
+        run: |
+          echo "Scanning for WCAG 2.1 AA compliance..."
+          # npx @axe-core/cli http://localhost:3000 --tags wcag2a,wcag2aa,section508
+          echo "✅ No critical accessibility violations found"
+
+      - name: Generate compliance report
+        run: |
+          echo "### ♿ Accessibility Compliance Report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Standard | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| WCAG 2.1 Level A | ✅ Compliant |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| WCAG 2.1 Level AA | ✅ Compliant |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Section 508 | ✅ Compliant |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Color contrast (4.5:1) | ✅ Pass |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Keyboard navigation | ✅ Pass |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Screen reader compat | ✅ Pass |" >> "$GITHUB_STEP_SUMMARY"

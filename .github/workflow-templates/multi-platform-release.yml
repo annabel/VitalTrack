@@ -1,0 +1,99 @@
+# ============================================================================
+# TEMPLATE: Multi-Platform Release
+# Copy to .github/workflows/ and customize for your project.
+#
+# Builds on Linux, macOS, and Windows; uploads artifacts; creates GitHub
+# Release with checksums. Ideal for CLI tools or desktop apps.
+# ============================================================================
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: linux-x64
+            ext: ""
+          - os: macos-latest
+            target: darwin-arm64
+            ext: ""
+          - os: windows-latest
+            target: windows-x64
+            ext: ".exe"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # ← Replace with your build command for the target platform
+      - name: Build
+        run: npm run build
+        env:
+          BUILD_TARGET: ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          ARTIFACT="myapp-${{ github.ref_name }}-${{ matrix.target }}"
+          mkdir -p release
+          # ← Adjust to package your actual build output
+          cp -r dist/ "release/$ARTIFACT"
+          tar -czf "${ARTIFACT}.tar.gz" -C release "$ARTIFACT"
+          echo "ARTIFACT_NAME=${ARTIFACT}.tar.gz" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.target }}
+          path: "*.tar.gz"
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          sha256sum *.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.ref_name }}"
+          PRERELEASE=""
+          if [[ "$TAG" == *"-"* ]]; then
+            PRERELEASE="--prerelease"
+          fi
+
+          gh release create "$TAG" \
+            --repo "${{ github.repository }}" \
+            --title "$TAG" \
+            --generate-notes \
+            $PRERELEASE \
+            artifacts/*

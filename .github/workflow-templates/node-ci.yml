@@ -1,0 +1,75 @@
+# ============================================================================
+# TEMPLATE: Node.js CI
+# Copy to .github/workflows/ and customize for your project.
+# ============================================================================
+name: "CI"
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22          # ← change to your version
+          cache: npm                # ← or 'yarn' / 'pnpm'
+
+      - run: npm ci
+      - run: npm run lint           # ← your lint command
+
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22]              # ← versions to test against
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+      - run: npm test               # ← your test command
+
+      # Uncomment for coverage uploads:
+      # - uses: codecov/codecov-action@v4
+      #   with:
+      #     token: ${{ secrets.CODECOV_TOKEN }}
+
+  build:
+    name: Build
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build          # ← your build command
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-output
+          path: dist/               # ← your output directory
+          retention-days: 7

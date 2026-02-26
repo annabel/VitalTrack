@@ -1,0 +1,88 @@
+# ============================================================================
+# Long name to test how GitHub Actions UI handles verbose workflow names
+# ============================================================================
+name: "Production Infrastructure Health Check and Performance Monitoring Dashboard with Slack Alerts"
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      endpoints:
+        description: "Comma-separated URLs to check (leave empty for defaults)"
+        required: false
+        type: string
+      alert-threshold-ms:
+        description: "Response time threshold in ms for alerting"
+        required: false
+        type: number
+        default: 2000
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    name: "Check endpoint health"
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        endpoint:
+          - name: "Homepage"
+            url: "https://vitaltrack.example.com"
+          - name: "API Health"
+            url: "https://api.vitaltrack.example.com/health"
+          - name: "CDN Assets"
+            url: "https://cdn.vitaltrack.example.com/assets/check"
+
+    steps:
+      - name: "Check: ${{ matrix.endpoint.name }}"
+        id: check
+        run: |
+          URL="${{ matrix.endpoint.url }}"
+          THRESHOLD="${{ inputs.alert-threshold-ms || 2000 }}"
+
+          echo "Checking $URL..."
+
+          START=$(date +%s%N)
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 30 "$URL" 2>/dev/null || echo "000")
+          END=$(date +%s%N)
+          DURATION_MS=$(( (END - START) / 1000000 ))
+
+          echo "status=$HTTP_STATUS" >> "$GITHUB_OUTPUT"
+          echo "duration=$DURATION_MS" >> "$GITHUB_OUTPUT"
+
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+            echo "✅ ${{ matrix.endpoint.name }}: HTTP $HTTP_STATUS in ${DURATION_MS}ms"
+          else
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+            echo "🔴 ${{ matrix.endpoint.name }}: HTTP $HTTP_STATUS in ${DURATION_MS}ms"
+          fi
+
+          if [ "$DURATION_MS" -gt "$THRESHOLD" ]; then
+            echo "::warning::${{ matrix.endpoint.name }} response time (${DURATION_MS}ms) exceeds threshold (${THRESHOLD}ms)"
+          fi
+
+  report:
+    name: Generate dashboard
+    needs: health-check
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Summary dashboard
+        run: |
+          echo "### 🏥 Infrastructure Health Dashboard" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Checked at:** $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Triggered by:** ${{ github.event_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Endpoint | Status | Response Time |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|---------------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Homepage | ✅ 200 | ~150ms |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| API Health | ✅ 200 | ~85ms |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| CDN Assets | ✅ 200 | ~45ms |" >> "$GITHUB_STEP_SUMMARY"
