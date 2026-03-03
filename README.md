@@ -8,8 +8,10 @@ A modern, clean health tracking app built with **React + TypeScript + Vite** and
 
 - 📊 **Dashboard** — Overview of today's metrics with progress bars towards daily goals
 - 📝 **Log Today** — Easily input steps, water intake, sleep, calories, workout minutes, and weight
-- 🎯 **Goals** — Customise your personal daily targets for each metric
+- 🎯 **Goals** — Customise your personal daily targets and patient name for each metric
 - 📈 **Weekly Trends** — Area charts showing the last 7 days for each metric
+- 📋 **Vitals Summary** — Tabular view of vitals for the last 7 days, 30 days, or all time, with averages
+- 📄 **Export PDF** — Generate a formatted PDF from the Vitals Summary, including patient name, date range, data table with averages, and a steps bar chart
 - 💾 **Local storage** — All data persists in the browser with no backend required
 
 ## Tech Stack
@@ -19,6 +21,8 @@ A modern, clean health tracking app built with **React + TypeScript + Vite** and
 - [Tailwind CSS v4](https://tailwindcss.com) for styling
 - [Recharts](https://recharts.org) for weekly trend charts
 - [Lucide React](https://lucide.dev) for icons
+- [jsPDF](https://github.com/parallax/jsPDF) (`jspdf`) — PDF document generation
+- [jsPDF-AutoTable](https://github.com/simonbengtsson/jsPDF-AutoTable) (`jspdf-autotable`) — Table plugin for jsPDF used to render the vitals data table in exported PDFs
 
 ## Getting Started
 

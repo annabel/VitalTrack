@@ -16,4 +16,5 @@ export interface HealthGoals {
   sleepHours: number;
   calories: number;
   workoutMinutes: number;
+  patientName: string;
 }
