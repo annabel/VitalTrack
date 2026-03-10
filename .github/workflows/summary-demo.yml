@@ -1,0 +1,24 @@
+# .github/workflows/summary-demo.yml
+name: Summary Demo
+on: workflow_dispatch
+
+jobs:
+  demo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write job summary
+        run: |
+          echo "## Test Results 🧪" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Test | Status | Duration |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|----------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Unit tests | ✅ Passed | 1m 23s |" >> $GITHUB_STEP_SUMMARY
+          echo "| Integration | ✅ Passed | 3m 45s |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E | ❌ Failed | 5m 12s |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Coverage" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "Statements: 87.3%" >> $GITHUB_STEP_SUMMARY
+          echo "Branches:   72.1%" >> $GITHUB_STEP_SUMMARY
+          echo "Functions:  91.5%" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
