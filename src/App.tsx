@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import {
   Activity, Droplets, Moon, Sun, Monitor, Weight, Flame, Dumbbell,
-  LayoutDashboard, Settings, ChevronRight, Target,
+  LayoutDashboard, Settings, ChevronRight, Target, ClipboardList,
 } from 'lucide-react';
 import { useHealthData } from './hooks/useHealthData';
 import { useDarkMode } from './hooks/useDarkMode';
 import MetricCard from './components/MetricCard';
 import WeeklyChart from './components/WeeklyChart';
 import NumberInput from './components/NumberInput';
+import VitalsSummaryPage from './components/VitalsSummaryPage';
 import type { HealthGoals } from './types/health';
 
-type Page = 'dashboard' | 'log' | 'settings';
+type Page = 'dashboard' | 'log' | 'summary' | 'settings';
 
 const NAV = [
   { id: 'dashboard' as Page, label: 'Dashboard', icon: LayoutDashboard },
   { id: 'log' as Page, label: 'Log Today', icon: Activity },
+  { id: 'summary' as Page, label: 'Vitals Summary', icon: ClipboardList },
   { id: 'settings' as Page, label: 'Goals', icon: Target },
 ];
 
@@ -73,6 +75,7 @@ export default function App() {
       <main className="flex-1 overflow-auto p-6 lg:p-8">
         {page === 'dashboard' && <DashboardPage todayEntry={todayEntry} last7Days={last7Days} goals={goals} pct={pct} isDark={isDark} />}
         {page === 'log' && <LogPage todayEntry={todayEntry} goals={goals} updateToday={updateToday} pct={pct} />}
+        {page === 'summary' && <VitalsSummaryPage />}
         {page === 'settings' && (
           <GoalsPage
             draftGoals={draftGoals}
@@ -265,7 +268,7 @@ function GoalsPage({ draftGoals, setDraftGoals, onSave }: {
   setDraftGoals: (g: HealthGoals) => void;
   onSave: () => void;
 }) {
-  const set = (k: keyof HealthGoals, v: number) => setDraftGoals({ ...draftGoals, [k]: v });
+  const set = (k: keyof HealthGoals, v: number | string) => setDraftGoals({ ...draftGoals, [k]: v });
   return (
     <div className="flex flex-col gap-6 max-w-xl mx-auto">
       <div>
@@ -273,6 +276,16 @@ function GoalsPage({ draftGoals, setDraftGoals, onSave }: {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Customise your daily targets</p>
       </div>
       <div className="bg-white dark:bg-gray-900 rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 flex flex-col gap-6">
+        <div className="flex flex-col gap-1">
+          <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Patient Name</label>
+          <input
+            type="text"
+            value={draftGoals.patientName}
+            onChange={e => set('patientName', e.target.value)}
+            placeholder="e.g. Athlete"
+            className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2 text-sm text-gray-800 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
         <NumberInput label="Daily Steps" value={draftGoals.steps} step={500} max={50000}
           onChange={v => set('steps', v)} accentColor="bg-blue-500" />
         <NumberInput label="Water Glasses" value={draftGoals.waterGlasses} max={30} unit="glasses"

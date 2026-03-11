@@ -12,6 +12,7 @@ const defaultGoals: HealthGoals = {
   sleepHours: 8,
   calories: 2000,
   workoutMinutes: 30,
+  patientName: 'Athlete',
 };
 
 function emptyEntry(date: string): DayEntry {
