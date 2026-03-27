@@ -1,7 +1,7 @@
 # ============================================================================
 # Long name to test how GitHub Actions UI handles verbose workflow names
 # ============================================================================
-name: "Full Stack Integration Test Suite Across Multiple Node Versions with Database Migrations and API Contract Validation"
+name: "Testing: Integration Suite"
 
 on:
   pull_request:

@@ -1,7 +1,7 @@
 # ============================================================================
 # Long name to test how GitHub Actions UI handles verbose workflow names
 # ============================================================================
-name: "Automated Cross-Browser End-to-End Testing Suite with Visual Regression Snapshots"
+name: "Testing: E2E Visual Regression"
 
 on:
   pull_request:

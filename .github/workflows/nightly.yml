@@ -2,7 +2,7 @@
 # Nightly Build — scheduled canary build & optional publish
 # Demonstrates: nightly schedule, build artifact retention, notifications
 # ============================================================================
-name: Nightly Build
+name: "Scheduled: Nightly Build"
 
 on:
   schedule:

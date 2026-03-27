@@ -6,7 +6,7 @@
 # Format: type(optional-scope): description
 # Examples: feat: add sleep tracker, fix(chart): handle empty data
 # ============================================================================
-name: PR Title Lint
+name: "PR: Title Lint"
 
 on:
   pull_request:

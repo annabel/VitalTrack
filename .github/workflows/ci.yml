@@ -2,7 +2,7 @@
 # CI — runs on every push & pull request
 # Demonstrates: matrix strategy, caching, artifacts, job dependencies
 # ============================================================================
-name: CI
+name: "CI: Lint & Build"
 
 on:
   push:

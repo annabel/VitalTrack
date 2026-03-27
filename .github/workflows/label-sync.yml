@@ -2,7 +2,7 @@
 # Label Sync — keep GitHub labels in sync from a config file
 # Demonstrates: label management as code, scheduled sync
 # ============================================================================
-name: Label Sync
+name: "Maintenance: Label Sync"
 
 on:
   push:

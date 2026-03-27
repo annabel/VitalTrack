@@ -2,7 +2,7 @@
 # Lock Closed Threads — lock issues and PRs after inactivity
 # Demonstrates: issue/PR locking, scheduled maintenance
 # ============================================================================
-name: Lock Closed Threads
+name: "Maintenance: Lock Threads"
 
 on:
   schedule:

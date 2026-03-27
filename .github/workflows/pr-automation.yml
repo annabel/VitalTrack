@@ -2,7 +2,7 @@
 # PR Automation — label, comment, and validate pull requests
 # Demonstrates: PR events, labeler, context expressions, job outputs
 # ============================================================================
-name: PR Automation
+name: "PR: Automation"
 
 on:
   pull_request:

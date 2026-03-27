@@ -2,7 +2,7 @@
 # Scheduled Audit — weekly dependency & security check
 # Demonstrates: cron schedule, npm audit, issue creation, OIDC
 # ============================================================================
-name: Scheduled Audit
+name: "Scheduled: Security Audit"
 
 on:
   schedule:

@@ -2,7 +2,7 @@
 # Stale — automatically manage stale issues & PRs
 # Demonstrates: stale action, scheduled workflow for repo hygiene
 # ============================================================================
-name: Stale Issues & PRs
+name: "Maintenance: Stale Issues"
 
 on:
   schedule:

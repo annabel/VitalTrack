@@ -2,7 +2,7 @@
 # CodeQL Analysis — GitHub's semantic code analysis for security vulnerabilities
 # Demonstrates: CodeQL, security scanning, SARIF uploads, scheduled + PR
 # ============================================================================
-name: CodeQL
+name: "CI: CodeQL Analysis"
 
 on:
   push:

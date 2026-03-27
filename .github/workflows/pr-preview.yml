@@ -2,7 +2,7 @@
 # PR Deploy Preview — deploy each PR to a unique preview URL
 # Demonstrates: per-PR environments, dynamic URLs, cleanup on close
 # ============================================================================
-name: PR Preview
+name: "PR: Preview"
 
 on:
   pull_request:

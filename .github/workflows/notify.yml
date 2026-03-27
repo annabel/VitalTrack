@@ -5,7 +5,7 @@
 # Setup: Add SLACK_WEBHOOK_URL to your repo secrets
 # Create one at: https://api.slack.com/messaging/webhooks
 # ============================================================================
-name: Notify
+name: "Notify: Slack"
 
 on:
   workflow_run:

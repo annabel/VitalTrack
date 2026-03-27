@@ -2,7 +2,7 @@
 # Release — create a GitHub Release when a version tag is pushed
 # Demonstrates: tag triggers, GitHub CLI, release creation, conditionals
 # ============================================================================
-name: Release
+name: "Release: Publish"
 
 on:
   push:

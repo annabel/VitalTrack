@@ -2,7 +2,7 @@
 # Quality Gate — calls the reusable workflow for multiple checks
 # Demonstrates: calling reusable workflows, using needs across called workflows
 # ============================================================================
-name: Quality Gate
+name: "CI: Quality Gate"
 
 on:
   workflow_dispatch:

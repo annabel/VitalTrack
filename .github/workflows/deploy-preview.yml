@@ -2,11 +2,11 @@
 # Deploy Preview — deploys to GitHub Pages on pushes to main
 # Demonstrates: environments, deployment status, downloading artifacts
 # ============================================================================
-name: Deploy Preview
+name: "Deploy: Preview"
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: ["CI: Lint & Build"]
     types: [completed]
     branches: [main]
 

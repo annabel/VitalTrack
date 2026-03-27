@@ -2,7 +2,7 @@
 # Staging Deploy — deploy to a staging environment on pushes to main
 # Demonstrates: multi-environment deployment, approval gates, environment secrets
 # ============================================================================
-name: Staging Deploy
+name: "Deploy: Staging"
 
 on:
   push:

@@ -1,7 +1,7 @@
 # ============================================================================
 # Long name to test how GitHub Actions UI handles verbose workflow names
 # ============================================================================
-name: "Comprehensive Accessibility Compliance Audit with WCAG 2.1 AA and Section 508 Validation Report"
+name: "Compliance: Accessibility Audit"
 
 on:
   pull_request:

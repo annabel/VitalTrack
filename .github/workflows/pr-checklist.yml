@@ -2,7 +2,7 @@
 # PR Checklist — verify common quality standards and surface them in one place
 # Demonstrates: github-script, combined status check, PR body inspection
 # ============================================================================
-name: PR Checklist
+name: "PR: Checklist"
 
 on:
   pull_request:

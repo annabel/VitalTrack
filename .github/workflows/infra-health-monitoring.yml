@@ -1,7 +1,7 @@
 # ============================================================================
 # Long name to test how GitHub Actions UI handles verbose workflow names
 # ============================================================================
-name: "Production Infrastructure Health Check and Performance Monitoring Dashboard with Slack Alerts"
+name: "Infra: Health Monitoring"
 
 on:
   schedule:

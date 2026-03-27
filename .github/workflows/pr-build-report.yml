@@ -2,7 +2,7 @@
 # PR Build Report — build the PR branch, measure bundle size, and comment
 # Demonstrates: comparing against base branch, PR comments, job summary
 # ============================================================================
-name: PR Build Report
+name: "PR: Build Report"
 
 on:
   pull_request:

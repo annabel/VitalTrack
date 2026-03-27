@@ -2,7 +2,7 @@
 # Branch Cleanup — delete branches after PRs are merged
 # Demonstrates: delete event, branch management, housekeeping
 # ============================================================================
-name: Branch Cleanup
+name: "Maintenance: Branch Cleanup"
 
 on:
   pull_request:

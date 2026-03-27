@@ -2,7 +2,7 @@
 # Changelog — auto-generate changelog on releases
 # Demonstrates: changelog generation, commit parsing, release asset updates
 # ============================================================================
-name: Changelog
+name: "Maintenance: Changelog"
 
 on:
   release:

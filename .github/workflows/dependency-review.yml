@@ -2,7 +2,7 @@
 # Dependency Review — block PRs that add known-vulnerable packages
 # Demonstrates: dependency-review-action, security scanning
 # ============================================================================
-name: Dependency Review
+name: "CI: Dependency Review"
 
 on:
   pull_request:
