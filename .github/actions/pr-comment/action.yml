@@ -1,0 +1,79 @@
+# ============================================================================
+# Composite Action — Create or update a PR comment
+# Posts a sticky comment on a PR, updating it on subsequent runs
+# ============================================================================
+name: "PR Comment"
+description: "Create or update a comment on the current pull request"
+
+inputs:
+  header:
+    description: "Unique identifier to find/update existing comments"
+    required: true
+  body:
+    description: "Markdown body of the comment"
+    required: true
+  repo-token:
+    description: "GitHub token with PR comment permissions"
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  comment-id:
+    description: "ID of the created or updated comment"
+    value: ${{ steps.comment.outputs.comment-id }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Find existing comment
+      id: find
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.repo-token }}
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        if [[ -z "$PR_NUMBER" ]]; then
+          echo "comment-id=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+        MARKER="<!-- vitaltrack:${{ inputs.header }} -->"
+        COMMENT_ID=$(gh api \
+          "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+          --jq ".[] | select(.body | contains(\"$MARKER\")) | .id" \
+          | head -1)
+        echo "comment-id=${COMMENT_ID}" >> "$GITHUB_OUTPUT"
+
+    - name: Create or update comment
+      id: comment
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.repo-token }}
+      run: |
+        PR_NUMBER="${{ github.event.pull_request.number }}"
+        if [[ -z "$PR_NUMBER" ]]; then
+          echo "::notice::Not a PR context — skipping comment"
+          echo "comment-id=" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        MARKER="<!-- vitaltrack:${{ inputs.header }} -->"
+        BODY="${MARKER}
+        ${{ inputs.body }}"
+
+        EXISTING="${{ steps.find.outputs.comment-id }}"
+        if [[ -n "$EXISTING" ]]; then
+          RESULT=$(gh api \
+            --method PATCH \
+            "repos/${{ github.repository }}/issues/comments/${EXISTING}" \
+            -f body="$BODY" \
+            --jq '.id')
+          echo "Updated comment $RESULT"
+        else
+          RESULT=$(gh api \
+            --method POST \
+            "repos/${{ github.repository }}/issues/${PR_NUMBER}/comments" \
+            -f body="$BODY" \
+            --jq '.id')
+          echo "Created comment $RESULT"
+        fi
+        echo "comment-id=${RESULT}" >> "$GITHUB_OUTPUT"

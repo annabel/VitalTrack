@@ -1,0 +1,49 @@
+# ============================================================================
+# Composite Action — Setup Node.js with dependency caching
+# Reusable step bundle for consistent Node.js environment across workflows
+# ============================================================================
+name: "Setup Node.js"
+description: "Install Node.js with npm caching and run npm ci"
+
+inputs:
+  node-version:
+    description: "Node.js version to install"
+    required: false
+    default: "22"
+  working-directory:
+    description: "Directory containing package.json"
+    required: false
+    default: "."
+
+outputs:
+  cache-hit:
+    description: "Whether the npm cache was hit"
+    value: ${{ steps.setup.outputs.cache-hit }}
+  node-version:
+    description: "Actual Node.js version installed"
+    value: ${{ steps.setup.outputs.node-version }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Node.js ${{ inputs.node-version }}
+      id: setup
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci
+
+    - name: Print environment info
+      shell: bash
+      run: |
+        echo "### Node.js Environment" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Tool | Version |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|------|---------|" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Node | $(node -v) |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| npm  | $(npm -v) |" >> "$GITHUB_STEP_SUMMARY"

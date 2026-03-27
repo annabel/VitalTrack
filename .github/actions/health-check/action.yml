@@ -1,0 +1,76 @@
+# ============================================================================
+# Composite Action — HTTP Health Check
+# Polls a URL until it returns a healthy response or times out
+# ============================================================================
+name: "Health Check"
+description: "Poll a URL and verify it returns a successful HTTP status"
+
+inputs:
+  url:
+    description: "URL to check"
+    required: true
+  expected-status:
+    description: "Expected HTTP status code"
+    required: false
+    default: "200"
+  max-attempts:
+    description: "Maximum number of polling attempts"
+    required: false
+    default: "10"
+  delay-seconds:
+    description: "Seconds to wait between attempts"
+    required: false
+    default: "5"
+
+outputs:
+  status-code:
+    description: "Final HTTP status code received"
+    value: ${{ steps.poll.outputs.status-code }}
+  response-time-ms:
+    description: "Response time in milliseconds"
+    value: ${{ steps.poll.outputs.response-time-ms }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Poll URL
+      id: poll
+      shell: bash
+      run: |
+        URL="${{ inputs.url }}"
+        EXPECTED="${{ inputs.expected-status }}"
+        MAX="${{ inputs.max-attempts }}"
+        DELAY="${{ inputs.delay-seconds }}"
+
+        echo "Polling $URL (expecting $EXPECTED, max $MAX attempts, ${DELAY}s delay)"
+
+        for i in $(seq 1 "$MAX"); do
+          RESPONSE=$(curl -s -o /dev/null -w "%{http_code} %{time_total}" "$URL" || echo "000 0")
+          STATUS=$(echo "$RESPONSE" | awk '{print $1}')
+          TIME_S=$(echo "$RESPONSE" | awk '{print $2}')
+          TIME_MS=$(echo "$TIME_S" | awk '{printf "%.0f", $1 * 1000}')
+
+          echo "  Attempt $i/$MAX — status=$STATUS time=${TIME_MS}ms"
+
+          if [[ "$STATUS" == "$EXPECTED" ]]; then
+            echo "status-code=$STATUS" >> "$GITHUB_OUTPUT"
+            echo "response-time-ms=$TIME_MS" >> "$GITHUB_OUTPUT"
+
+            echo "### 🏥 Health Check Passed" >> "$GITHUB_STEP_SUMMARY"
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Field | Value |" >> "$GITHUB_STEP_SUMMARY"
+            echo "|-------|-------|" >> "$GITHUB_STEP_SUMMARY"
+            echo "| URL | \`$URL\` |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Status | $STATUS |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Response time | ${TIME_MS}ms |" >> "$GITHUB_STEP_SUMMARY"
+            echo "| Attempts | $i |" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          sleep "$DELAY"
+        done
+
+        echo "status-code=$STATUS" >> "$GITHUB_OUTPUT"
+        echo "response-time-ms=$TIME_MS" >> "$GITHUB_OUTPUT"
+        echo "::error::Health check failed after $MAX attempts (last status: $STATUS)"
+        exit 1

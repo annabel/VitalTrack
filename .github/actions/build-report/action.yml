@@ -1,0 +1,74 @@
+# ============================================================================
+# Composite Action — Build size report
+# Generates a summary of the production build output sizes
+# ============================================================================
+name: "Build Size Report"
+description: "Build the project and report output sizes as a job summary"
+
+inputs:
+  build-command:
+    description: "Build command to run"
+    required: false
+    default: "npm run build"
+  dist-directory:
+    description: "Output directory to measure"
+    required: false
+    default: "dist"
+  size-limit-kb:
+    description: "Warn if total bundle exceeds this size (KB)"
+    required: false
+    default: "500"
+
+outputs:
+  total-size-kb:
+    description: "Total build size in kilobytes"
+    value: ${{ steps.measure.outputs.total-size-kb }}
+  exceeded:
+    description: "Whether the size limit was exceeded"
+    value: ${{ steps.measure.outputs.exceeded }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Run build
+      shell: bash
+      run: ${{ inputs.build-command }}
+
+    - name: Measure output sizes
+      id: measure
+      shell: bash
+      run: |
+        DIST="${{ inputs.dist-directory }}"
+        LIMIT="${{ inputs.size-limit-kb }}"
+
+        if [[ ! -d "$DIST" ]]; then
+          echo "::error::Build directory '$DIST' not found"
+          exit 1
+        fi
+
+        TOTAL_BYTES=$(find "$DIST" -type f | xargs wc -c | tail -1 | awk '{print $1}')
+        TOTAL_KB=$(( TOTAL_BYTES / 1024 ))
+
+        echo "total-size-kb=${TOTAL_KB}" >> "$GITHUB_OUTPUT"
+
+        if (( TOTAL_KB > LIMIT )); then
+          echo "exceeded=true" >> "$GITHUB_OUTPUT"
+          echo "::warning::Build size ${TOTAL_KB}KB exceeds limit of ${LIMIT}KB"
+        else
+          echo "exceeded=false" >> "$GITHUB_OUTPUT"
+        fi
+
+        echo "### 📦 Build Size Report" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Metric | Value |" >> "$GITHUB_STEP_SUMMARY"
+        echo "|--------|-------|" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Total size | ${TOTAL_KB} KB |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Size limit | ${LIMIT} KB |" >> "$GITHUB_STEP_SUMMARY"
+        echo "| Status | $([ "$TOTAL_KB" -le "$LIMIT" ] && echo '✅ OK' || echo '⚠️ Over limit') |" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+
+        echo "**File breakdown:**" >> "$GITHUB_STEP_SUMMARY"
+        echo "" >> "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
+        find "$DIST" -type f -exec ls -lhS {} + | awk '{print $5, $NF}' >> "$GITHUB_STEP_SUMMARY"
+        echo '```' >> "$GITHUB_STEP_SUMMARY"
